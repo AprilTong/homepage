@@ -1,14 +1,21 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
-import { enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import AppHeader from '~/components/AppHeader.vue'
 
-enableAutoUnmount(afterEach)
+const mountedWrappers = new Set<{ unmount: () => void }>()
 
-function mountHeader() {
+afterEach(() => {
+  for (const wrapper of mountedWrappers) {
+    wrapper.unmount()
+  }
+
+  mountedWrappers.clear()
+})
+
+async function mountHeader() {
   const routeComponent = { render: () => null }
   const router = createRouter({
     history: createMemoryHistory(),
@@ -20,10 +27,13 @@ function mountHeader() {
     ],
   })
 
-  return mountSuspended(AppHeader, {
+  const wrapper = await mountSuspended(AppHeader, {
     route: false,
     global: { plugins: [router] },
   })
+
+  mountedWrappers.add(wrapper)
+  return wrapper
 }
 
 describe('AppHeader', () => {
@@ -105,6 +115,7 @@ describe('AppHeader', () => {
 
       expect(keydownHandler).toBeTypeOf('function')
 
+      mountedWrappers.delete(wrapper)
       wrapper.unmount()
 
       expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', keydownHandler)
