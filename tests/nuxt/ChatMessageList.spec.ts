@@ -61,6 +61,12 @@ interface ResizeObserverDouble {
   disconnect: ReturnType<typeof vi.fn>
 }
 
+interface MutationObserverDouble {
+  callback: MutationCallback
+  observe: ReturnType<typeof vi.fn>
+  disconnect: ReturnType<typeof vi.fn>
+}
+
 function stubResizeObserver() {
   const observers: ResizeObserverDouble[] = []
 
@@ -77,6 +83,25 @@ function stubResizeObserver() {
   }
 
   vi.stubGlobal('ResizeObserver', ResizeObserverMock)
+  return observers
+}
+
+function stubMutationObserver() {
+  const observers: MutationObserverDouble[] = []
+
+  class MutationObserverMock {
+    callback: MutationCallback
+    observe = vi.fn()
+    takeRecords = vi.fn(() => [])
+    disconnect = vi.fn()
+
+    constructor(callback: MutationCallback) {
+      this.callback = callback
+      observers.push(this)
+    }
+  }
+
+  vi.stubGlobal('MutationObserver', MutationObserverMock)
   return observers
 }
 
@@ -303,6 +328,7 @@ describe('ChatMessageList', () => {
 
   it('消息内容变化后平滑滚动到底部', async () => {
     vi.stubGlobal('ResizeObserver', undefined)
+    vi.stubGlobal('MutationObserver', undefined)
     const wrapper = await mountMessageList([
       { id: 'a1', role: 'assistant', content: '回答', status: 'streaming' },
     ])
@@ -320,6 +346,7 @@ describe('ChatMessageList', () => {
 
   it('逐条跟踪消息内容，拼接结果相同时仍触发滚动', async () => {
     vi.stubGlobal('ResizeObserver', undefined)
+    vi.stubGlobal('MutationObserver', undefined)
     const wrapper = await mountMessageList([
       { id: 'a1', role: 'assistant', content: '回答继续', status: 'streaming' },
       { id: 'u1', role: 'user', content: '吗', status: 'complete' },
@@ -339,8 +366,9 @@ describe('ChatMessageList', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
   })
 
-  it('无 ResizeObserver 时在终态和引用变化后滚动', async () => {
+  it('观察器均不可用时在终态和引用变化后滚动', async () => {
     vi.stubGlobal('ResizeObserver', undefined)
+    vi.stubGlobal('MutationObserver', undefined)
     const messages = ref<ChatMessage[]>([
       { id: 'a1', role: 'assistant', content: '回答', status: 'streaming' },
     ])
@@ -360,10 +388,58 @@ describe('ChatMessageList', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
   })
 
-  it('实际内容尺寸异步变化时通过 ResizeObserver 滚动', async () => {
+  it('无 ResizeObserver 时等待 MDC DOM 变化后滚动到新高度', async () => {
+    vi.stubGlobal('ResizeObserver', undefined)
+    const observers = stubMutationObserver()
+    const wrapper = await mountMessageList([
+      { id: 'a1', role: 'assistant', content: '**完整回答**', status: 'streaming' },
+    ])
+    const list = wrapper.get('section.message-list').element as HTMLElement
+    const content = wrapper.get('.message-list__content').element
+    const scrollTo = vi.fn()
+    let renderedHeight = 120
+    Object.defineProperties(list, {
+      scrollHeight: { configurable: true, get: () => renderedHeight },
+      scrollTo: { configurable: true, value: scrollTo },
+    })
+
+    expect(observers).toHaveLength(1)
+    expect(observers[0]!.observe).toHaveBeenCalledWith(content, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+
+    await wrapper.setProps({
+      messages: [{
+        id: 'a1',
+        role: 'assistant',
+        content: '**完整回答**',
+        status: 'complete',
+        citations: [{ id: 'c1', title: '引用标题', excerpt: '引用摘要' }],
+      }],
+    })
+    await flushPromises()
+
+    expect(wrapper.get('strong').text()).toBe('完整回答')
+    expect(wrapper.get('summary').text()).toBe('查看 1 条引用来源')
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    renderedHeight = 480
+    observers[0]!.callback([], {} as MutationObserver)
+
+    expect(scrollTo).toHaveBeenCalledOnce()
+    expect(scrollTo).toHaveBeenCalledWith({ top: 480, behavior: 'smooth' })
+
+    wrapper.unmount()
+    mountedWrappers.delete(wrapper)
+    expect(observers[0]!.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('ResizeObserver 可用时内容更新不会由 watch 重复滚动', async () => {
     const observers = stubResizeObserver()
     const wrapper = await mountMessageList([
-      { id: 'a1', role: 'assistant', content: '回答', status: 'complete' },
+      { id: 'a1', role: 'assistant', content: '回答', status: 'streaming' },
     ])
     const list = wrapper.get('section.message-list').element as HTMLElement
     const content = wrapper.get('.message-list__content').element
@@ -374,8 +450,16 @@ describe('ChatMessageList', () => {
     expect(observers[0]!.observe).toHaveBeenCalledWith(list)
     expect(observers[0]!.observe).toHaveBeenCalledWith(content)
 
+    await wrapper.setProps({
+      messages: [{ id: 'a1', role: 'assistant', content: '回答继续', status: 'streaming' }],
+    })
+    await nextTick()
+
+    expect(scrollTo).not.toHaveBeenCalled()
+
     observers[0]!.callback([], {} as ResizeObserver)
 
+    expect(scrollTo).toHaveBeenCalledOnce()
     expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
   })
 

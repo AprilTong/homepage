@@ -8,6 +8,8 @@ const props = defineProps<{
 const list = useTemplateRef<HTMLElement>('list')
 const content = useTemplateRef<HTMLElement>('content')
 let resizeObserver: ResizeObserver | undefined
+let mutationObserver: MutationObserver | undefined
+let scrollTrackingMode: 'resize' | 'mutation' | 'watch' = 'watch'
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined'
@@ -39,26 +41,47 @@ watch(
     ]),
   ]),
   async () => {
+    if (scrollTrackingMode !== 'watch') {
+      return
+    }
+
     await nextTick()
     scrollToBottom()
   },
 )
 
 onMounted(() => {
-  if (typeof ResizeObserver === 'undefined' || !list.value) {
+  const listElement = list.value
+  const contentElement = content.value
+  if (!listElement) {
     return
   }
 
-  resizeObserver = new ResizeObserver(scrollToBottom)
-  resizeObserver.observe(list.value)
+  if (typeof ResizeObserver !== 'undefined') {
+    scrollTrackingMode = 'resize'
+    resizeObserver = new ResizeObserver(scrollToBottom)
+    resizeObserver.observe(listElement)
 
-  if (content.value) {
-    resizeObserver.observe(content.value)
+    if (contentElement) {
+      resizeObserver.observe(contentElement)
+    }
   }
+  else if (typeof MutationObserver !== 'undefined' && contentElement) {
+    scrollTrackingMode = 'mutation'
+    mutationObserver = new MutationObserver(scrollToBottom)
+    mutationObserver.observe(contentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+  }
+
+  scrollToBottom()
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  mutationObserver?.disconnect()
 })
 </script>
 
