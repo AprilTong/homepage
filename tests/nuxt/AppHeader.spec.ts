@@ -1,9 +1,12 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { enableAutoUnmount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import AppHeader from '~/components/AppHeader.vue'
+
+enableAutoUnmount(afterEach)
 
 function mountHeader() {
   const routeComponent = { render: () => null }
@@ -84,10 +87,31 @@ describe('AppHeader', () => {
 
     await toggle.trigger('click')
     const articleLink = wrapper.get('a[href="/articles"]')
-    articleLink.element.addEventListener('click', event => event.preventDefault())
     await articleLink.trigger('click')
 
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.get('#primary-navigation').classes()).not.toContain('is-open')
+  })
+
+  it('卸载时移除同一个全局 keydown 监听器', async () => {
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
+    const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
+
+    try {
+      const wrapper = await mountHeader()
+      const keydownHandler = addEventListenerSpy.mock.calls.find(
+        ([eventName]) => String(eventName) === 'keydown',
+      )?.[1]
+
+      expect(keydownHandler).toBeTypeOf('function')
+
+      wrapper.unmount()
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', keydownHandler)
+    }
+    finally {
+      addEventListenerSpy.mockRestore()
+      removeEventListenerSpy.mockRestore()
+    }
   })
 })
