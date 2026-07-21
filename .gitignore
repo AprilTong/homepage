@@ -1,4 +1,5 @@
 .superpowers/
+.worktrees/
 .nuxt/
 .output/
 node_modules/
