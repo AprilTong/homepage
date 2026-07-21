@@ -28,7 +28,7 @@ function isCoarsePointer() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Enter' || event.shiftKey || isCoarsePointer()) {
+  if (event.key !== 'Enter' || event.shiftKey || event.isComposing || isCoarsePointer()) {
     return
   }
 

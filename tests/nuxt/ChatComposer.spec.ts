@@ -1,9 +1,11 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { nextTick } from 'vue'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import ChatComposer from '~/components/chat/ChatComposer.vue'
 
 const mountedWrappers = new Set<{ unmount: () => void }>()
+const mountedBodyNodes = new Set<Node>()
 
 afterEach(() => {
   for (const wrapper of mountedWrappers) {
@@ -11,13 +13,31 @@ afterEach(() => {
   }
 
   mountedWrappers.clear()
+
+  for (const node of mountedBodyNodes) {
+    node.parentNode?.removeChild(node)
+  }
+
+  mountedBodyNodes.clear()
   vi.unstubAllGlobals()
 })
 
-async function mountComposer(streaming = false) {
+async function mountComposer(streaming = false, attachToBody = false) {
+  const existingBodyNodes = attachToBody
+    ? new Set(document.body.childNodes)
+    : undefined
   const wrapper = await mountSuspended(ChatComposer, {
     props: { streaming },
+    ...(attachToBody ? { attachTo: document.body } : {}),
   })
+
+  if (existingBodyNodes) {
+    for (const node of document.body.childNodes) {
+      if (!existingBodyNodes.has(node)) {
+        mountedBodyNodes.add(node)
+      }
+    }
+  }
 
   mountedWrappers.add(wrapper)
   return wrapper
@@ -91,9 +111,21 @@ describe('ChatComposer', () => {
     expect((textarea.element as HTMLTextAreaElement).value).toBe('')
   })
 
+  it('输入法正在组合文本时按 Enter 不发送且保留内容', async () => {
+    mockCoarsePointer(false)
+    const wrapper = await mountComposer()
+    const textarea = wrapper.get('textarea')
+
+    await textarea.setValue('中文内容')
+    await textarea.trigger('keydown', { key: 'Enter', isComposing: true })
+
+    expect(wrapper.emitted('send')).toBeUndefined()
+    expect((textarea.element as HTMLTextAreaElement).value).toBe('中文内容')
+  })
+
   it('粗指针环境按 Enter 不发送，但发送按钮仍可提交', async () => {
     mockCoarsePointer(true)
-    const wrapper = await mountComposer()
+    const wrapper = await mountComposer(false, true)
     const textarea = wrapper.get('textarea')
 
     await textarea.setValue('移动端问题')
@@ -104,7 +136,8 @@ describe('ChatComposer', () => {
     const sendButton = wrapper.get('button[aria-label="发送问题"]')
     expect(sendButton.attributes('type')).toBe('submit')
     expect(sendButton.attributes()).not.toHaveProperty('disabled')
-    await wrapper.get('form').trigger('submit')
+    ;(sendButton.element as HTMLButtonElement).click()
+    await nextTick()
 
     expect(wrapper.emitted('send')).toEqual([['移动端问题']])
   })

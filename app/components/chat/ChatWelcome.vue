@@ -19,7 +19,7 @@ const prompts = [
       我会从 April 的技术笔记和知识文档中寻找答案，并提供可核对的引用来源。
     </p>
 
-    <div class="quick-prompts" aria-label="快捷问题">
+    <div class="quick-prompts" role="group" aria-label="快捷问题">
       <button
         v-for="prompt in prompts"
         :key="prompt"

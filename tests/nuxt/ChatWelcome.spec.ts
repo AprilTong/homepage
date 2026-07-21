@@ -34,6 +34,7 @@ describe('ChatWelcome', () => {
     )
 
     const quickPrompts = welcome.get('.quick-prompts')
+    expect(quickPrompts.attributes('role')).toBe('group')
     expect(quickPrompts.attributes('aria-label')).toBe('快捷问题')
 
     const buttons = quickPrompts.findAll('[data-testid="quick-prompt"]')
