@@ -6,23 +6,60 @@ const props = defineProps<{
 }>()
 
 const list = useTemplateRef<HTMLElement>('list')
+const content = useTemplateRef<HTMLElement>('content')
+let resizeObserver: ResizeObserver | undefined
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+function scrollToBottom() {
+  const element = list.value
+  if (!element || typeof element.scrollTo !== 'function') {
+    return
+  }
+
+  element.scrollTo({
+    top: element.scrollHeight,
+    behavior: prefersReducedMotion() ? 'auto' : 'smooth',
+  })
+}
 
 watch(
-  () => props.messages.map(message => message.content),
+  () => props.messages.map(message => [
+    message.id,
+    message.content,
+    message.status,
+    message.citations?.map(citation => [
+      citation.id,
+      citation.title,
+      citation.excerpt,
+    ]),
+  ]),
   async () => {
     await nextTick()
-
-    const element = list.value
-    if (!element || typeof element.scrollTo !== 'function') {
-      return
-    }
-
-    element.scrollTo({
-      top: element.scrollHeight,
-      behavior: 'smooth',
-    })
+    scrollToBottom()
   },
 )
+
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined' || !list.value) {
+    return
+  }
+
+  resizeObserver = new ResizeObserver(scrollToBottom)
+  resizeObserver.observe(list.value)
+
+  if (content.value) {
+    resizeObserver.observe(content.value)
+  }
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+})
 </script>
 
 <template>
@@ -32,10 +69,15 @@ watch(
     aria-live="polite"
     aria-label="对话消息"
   >
-    <ChatMessage
-      v-for="message in messages"
-      :key="message.id"
-      :message="message"
-    />
+    <div
+      ref="content"
+      class="message-list__content"
+    >
+      <ChatMessage
+        v-for="message in messages"
+        :key="message.id"
+        :message="message"
+      />
+    </div>
   </section>
 </template>
