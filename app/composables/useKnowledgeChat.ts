@@ -63,6 +63,7 @@ export function useKnowledgeChat(client: ChatClient = createDemoChatClient()) {
         else {
           assistant.citations = event.citations
           assistant.status = 'complete'
+          break
         }
       }
 

@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { useKnowledgeChat } from '../../app/composables/useKnowledgeChat'
+import { createDemoChatClient } from '../../app/services/demo-chat-client'
 import type { ChatClient, ChatStreamEvent } from '../../app/types/chat'
 
 function createDeferred() {
@@ -12,27 +13,19 @@ function createDeferred() {
   return { promise, resolve }
 }
 
-async function waitFor(assertion: () => void) {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    try {
-      assertion()
-      return
-    }
-    catch {
-      await Promise.resolve()
-    }
-  }
-
-  assertion()
-}
-
 describe('useKnowledgeChat', () => {
   it('streams deltas into one assistant message and completes the answer', async () => {
+    const citation = {
+      id: 'source-1',
+      title: '知识库条目',
+      excerpt: '这是引用摘要。',
+    }
     const client: ChatClient = {
       async *streamAnswer(): AsyncIterable<ChatStreamEvent> {
         yield { type: 'delta', delta: '你好，' }
         yield { type: 'delta', delta: '这是知识库回答。' }
-        yield { type: 'done' }
+        yield { type: 'done', citations: [citation] }
+        yield { type: 'delta', delta: '不应继续追加' }
       },
     }
     const chat = useKnowledgeChat(client)
@@ -49,6 +42,7 @@ describe('useKnowledgeChat', () => {
       role: 'assistant',
       content: '你好，这是知识库回答。',
       status: 'complete',
+      citations: [citation],
     })
     expect(chat.status.value).toBe('idle')
   })
@@ -92,7 +86,7 @@ describe('useKnowledgeChat', () => {
     const chat = useKnowledgeChat(client)
     const request = chat.sendMessage('请回答')
 
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(chat.messages.value.at(-1)?.content).toBe('已经生成')
     })
     chat.stopGenerating()
@@ -129,7 +123,7 @@ describe('useKnowledgeChat', () => {
     const chat = useKnowledgeChat(client)
     const firstRequest = chat.sendMessage('旧问题')
 
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(chat.messages.value.at(-1)?.content).toBe('旧回答')
     })
     chat.stopGenerating()
@@ -176,5 +170,30 @@ describe('useKnowledgeChat', () => {
     })
     expect(chat.errorMessage.value).toBe('')
     expect(chat.status.value).toBe('idle')
+  })
+})
+
+describe('createDemoChatClient', () => {
+  it('aborts a pending chunk delay without leaving timers or later events', async () => {
+    vi.useFakeTimers()
+
+    try {
+      const controller = new AbortController()
+      const iterator = createDemoChatClient()
+        .streamAnswer('演示问题', controller.signal)
+        [Symbol.asyncIterator]()
+      const pendingEvent = iterator.next()
+
+      expect(vi.getTimerCount()).toBe(1)
+      controller.abort()
+
+      await expect(pendingEvent).rejects.toMatchObject({ name: 'AbortError' })
+      expect(vi.getTimerCount()).toBe(0)
+      await expect(iterator.next()).resolves.toEqual({ done: true, value: undefined })
+    }
+    finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
   })
 })
