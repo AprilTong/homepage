@@ -18,6 +18,16 @@ export interface ChatMessage {
   citations?: ChatCitation[]
 }
 
+export class PublicChatError extends Error {
+  readonly publicMessage: string
+
+  constructor(publicMessage: string) {
+    super(publicMessage)
+    this.name = 'PublicChatError'
+    this.publicMessage = publicMessage
+  }
+}
+
 export type ChatStreamEvent =
   | { type: 'delta', delta: string }
   | { type: 'done', citations?: ChatCitation[] }

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="background" x1="8" y1="4" x2="57" y2="61" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#bceeff" />
+      <stop offset=".5" stop-color="#6bddff" />
+      <stop offset="1" stop-color="#37a9ce" />
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#background)" />
+  <circle cx="32" cy="32" r="29" fill="none" stroke="#effbff" stroke-opacity=".45" stroke-width="2" />
+  <text x="32" y="41.5" fill="#07131e" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="31" font-weight="800" text-anchor="middle">同</text>
+</svg>

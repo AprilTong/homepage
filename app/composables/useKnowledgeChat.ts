@@ -1,6 +1,8 @@
 import { computed, reactive, ref } from 'vue'
 
-import { createDemoChatClient } from '../services/demo-chat-client'
+import { createKnowflowChatClient } from '../services/knowflow-chat-client'
+import { resolveKnowflowChatEndpoint } from '../services/knowflow-chat-endpoint'
+import { PublicChatError } from '../types/chat'
 import type { ChatClient, ChatMessage, ChatStatus } from '../types/chat'
 
 const FALLBACK_ERROR_MESSAGE = '生成回答时发生错误'
@@ -14,10 +16,15 @@ export function createId() {
 }
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : FALLBACK_ERROR_MESSAGE
+  return error instanceof PublicChatError ? error.publicMessage : FALLBACK_ERROR_MESSAGE
 }
 
-export function useKnowledgeChat(client: ChatClient = createDemoChatClient()) {
+export function useKnowledgeChat(client?: ChatClient) {
+  const resolvedClient = client
+    ?? createKnowflowChatClient(resolveKnowflowChatEndpoint(
+      useRuntimeConfig().public.knowflowPublicChatUrl,
+      import.meta.dev,
+    ))
   const messages = ref<ChatMessage[]>([])
   const status = ref<ChatStatus>('idle')
   const errorMessage = ref('')
@@ -52,7 +59,7 @@ export function useKnowledgeChat(client: ChatClient = createDemoChatClient()) {
     }, assistant)
 
     try {
-      for await (const event of client.streamAnswer(question, controller.signal)) {
+      for await (const event of resolvedClient.streamAnswer(question, controller.signal)) {
         if (controller.signal.aborted) {
           break
         }
@@ -72,7 +79,10 @@ export function useKnowledgeChat(client: ChatClient = createDemoChatClient()) {
       }
       else {
         if (assistant.status === 'streaming') {
-          assistant.status = 'complete'
+          assistant.status = 'error'
+          errorMessage.value = FALLBACK_ERROR_MESSAGE
+          status.value = 'error'
+          return
         }
         status.value = 'idle'
       }

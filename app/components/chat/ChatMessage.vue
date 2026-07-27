@@ -1,121 +1,6 @@
 <script setup lang="ts">
 import type { ChatMessage } from '../../types/chat'
 
-interface MarkdownNode {
-  type: string
-  tagName?: string
-  properties?: Record<string, unknown>
-  children?: MarkdownNode[]
-}
-
-const allowedMarkdownTags = new Set([
-  'a',
-  'blockquote',
-  'br',
-  'code',
-  'em',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'hr',
-  'li',
-  'ol',
-  'p',
-  'pre',
-  'strong',
-  'table',
-  'tbody',
-  'td',
-  'th',
-  'thead',
-  'tr',
-  'ul',
-])
-
-const allowedMarkdownProperties: Record<string, Set<string>> = {
-  a: new Set(['href', 'title']),
-  code: new Set(['className']),
-  ol: new Set(['start']),
-  td: new Set(['align']),
-  th: new Set(['align']),
-}
-
-const allowedLinkProtocols = new Set(['http:', 'https:', 'mailto:', 'tel:'])
-const safeLinkBase = 'https://chat.invalid'
-
-function isSafeLink(value: unknown) {
-  if (typeof value !== 'string' || !value.trim()) {
-    return false
-  }
-
-  try {
-    const url = new URL(value, safeLinkBase)
-    return url.origin === safeLinkBase || allowedLinkProtocols.has(url.protocol)
-  }
-  catch {
-    return false
-  }
-}
-
-function sanitizeMarkdownChildren(children: MarkdownNode[] = []): MarkdownNode[] {
-  return children.flatMap((node) => {
-    if (node.type === 'text') {
-      return [node]
-    }
-
-    const safeChildren = sanitizeMarkdownChildren(node.children)
-    const tag = node.type === 'element' ? node.tagName?.toLowerCase() : undefined
-
-    if (!tag || !allowedMarkdownTags.has(tag)) {
-      return safeChildren
-    }
-
-    const properties = node.properties ?? {}
-    if (tag === 'a' && !isSafeLink(properties.href)) {
-      return safeChildren
-    }
-
-    const allowedProperties = allowedMarkdownProperties[tag]
-    node.tagName = tag
-    node.children = safeChildren
-    node.properties = allowedProperties
-      ? Object.fromEntries(
-          Object.entries(properties).filter(([name]) => allowedProperties.has(name)),
-        )
-      : {}
-
-    return [node]
-  })
-}
-
-function safeMarkdownPlugin() {
-  return (tree: MarkdownNode) => {
-    tree.children = sanitizeMarkdownChildren(tree.children)
-  }
-}
-
-const safeMarkdownParserOptions = {
-  remark: {
-    plugins: {
-      'remark-mdc': false as const,
-    },
-  },
-  rehype: {
-    options: {
-      allowDangerousHtml: false,
-    },
-    plugins: {
-      'rehype-raw': false as const,
-      'chat-message-sanitizer': {
-        instance: safeMarkdownPlugin,
-      },
-    },
-  },
-}
-
 const props = defineProps<{
   message: ChatMessage
 }>()
@@ -124,6 +9,10 @@ const copied = ref(false)
 const copyError = ref('')
 const copyPending = ref(false)
 const copyFeedback = computed(() => copied.value ? '已复制' : copyError.value)
+const citationIndex = ref(0)
+const citations = computed(() => props.message.citations ?? [])
+const activeCitation = computed(() => citations.value[citationIndex.value])
+const hasMultipleCitations = computed(() => citations.value.length > 1)
 let copyOperation = 0
 
 watch(
@@ -135,6 +24,25 @@ watch(
     copyError.value = ''
   },
 )
+
+watch(
+  () => props.message.citations,
+  () => {
+    citationIndex.value = 0
+  },
+)
+
+function showPreviousCitation() {
+  if (citationIndex.value > 0) {
+    citationIndex.value -= 1
+  }
+}
+
+function showNextCitation() {
+  if (citationIndex.value < citations.value.length - 1) {
+    citationIndex.value += 1
+  }
+}
 
 async function copyMessage() {
   if (copyPending.value) {
@@ -189,24 +97,11 @@ async function copyMessage() {
     </span>
 
     <p
-      v-if="message.role === 'user' && message.content"
+      v-if="message.content"
       class="chat-message__content chat-message__content--plain"
     >
       {{ message.content }}
     </p>
-    <p
-      v-else-if="message.status === 'streaming' && message.content"
-      class="chat-message__content chat-message__content--streaming"
-    >
-      {{ message.content }}
-    </p>
-    <MDC
-      v-else-if="message.content"
-      class="chat-message__content"
-      :value="message.content"
-      :cache-key="`safe-chat-message-${message.id}`"
-      :parser-options="safeMarkdownParserOptions"
-    />
     <p
       v-else-if="message.role === 'assistant' && message.status === 'streaming'"
       class="chat-message__thinking"
@@ -250,20 +145,52 @@ async function copyMessage() {
     </span>
 
     <details
-      v-if="message.citations?.length"
+      v-if="citations.length"
       class="chat-message__citations citations"
     >
-      <summary>查看 {{ message.citations.length }} 条引用来源</summary>
-      <article
-        v-for="citation in message.citations"
-        :key="citation.id"
-        class="citation"
-      >
-        <strong class="citation__title">{{ citation.title }}</strong>
-        <p class="citation__excerpt">
-          {{ citation.excerpt }}
-        </p>
-      </article>
+      <summary>查看 {{ citations.length }} 条引用来源</summary>
+
+      <div class="citation-carousel">
+        <div
+          v-if="hasMultipleCitations"
+          class="citation-carousel__toolbar"
+        >
+          <button
+            type="button"
+            class="citation-carousel__nav"
+            aria-label="上一条引用"
+            :disabled="citationIndex === 0"
+            @click="showPreviousCitation"
+          >
+            ←
+          </button>
+          <span
+            class="citation-carousel__position"
+            aria-live="polite"
+          >
+            {{ citationIndex + 1 }} / {{ citations.length }}
+          </span>
+          <button
+            type="button"
+            class="citation-carousel__nav"
+            aria-label="下一条引用"
+            :disabled="citationIndex === citations.length - 1"
+            @click="showNextCitation"
+          >
+            →
+          </button>
+        </div>
+
+        <article
+          v-if="activeCitation"
+          class="citation"
+        >
+          <strong class="citation__title">{{ activeCitation.title }}</strong>
+          <p class="citation__excerpt">
+            {{ activeCitation.excerpt }}
+          </p>
+        </article>
+      </div>
     </details>
   </article>
 </template>

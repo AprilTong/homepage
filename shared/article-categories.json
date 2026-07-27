@@ -1,0 +1,42 @@
+[
+  {
+    "slug": "vue",
+    "label": "Vue",
+    "legacyDirectory": "accumulate/vue"
+  },
+  {
+    "slug": "javascript",
+    "label": "JavaScript",
+    "legacyDirectory": "accumulate/js"
+  },
+  {
+    "slug": "css",
+    "label": "CSS",
+    "legacyDirectory": "accumulate/css"
+  },
+  {
+    "slug": "tools",
+    "label": "工具",
+    "legacyDirectory": "accumulate/tool"
+  },
+  {
+    "slug": "engineering",
+    "label": "工程化",
+    "legacyDirectory": "accumulate/buildTool"
+  },
+  {
+    "slug": "periphery",
+    "label": "周边技术",
+    "legacyDirectory": "accumulate/periphery"
+  },
+  {
+    "slug": "algorithm",
+    "label": "简单算法",
+    "legacyDirectory": "algorithm"
+  },
+  {
+    "slug": "life",
+    "label": "生活随笔",
+    "legacyDirectory": "others"
+  }
+]

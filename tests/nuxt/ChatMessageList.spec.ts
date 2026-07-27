@@ -135,8 +135,10 @@ describe('ChatMessageList', () => {
     const userMessage = list.get('[data-role="user"]')
     const assistantMessage = list.get('[data-role="assistant"]')
 
-    expect(list.attributes('aria-live')).toBe('polite')
+    expect(list.attributes('aria-live')).toBeUndefined()
+    expect(list.attributes('aria-busy')).toBe('false')
     expect(list.attributes('aria-label')).toBe('对话消息')
+    expect(wrapper.get('.message-list__announcement').text()).toBe('回答生成完成')
     expect(userMessage.classes()).toContain('chat-message--user')
     expect(userMessage.text()).toContain('YOU')
     expect(userMessage.text()).toContain('问题')
@@ -149,7 +151,46 @@ describe('ChatMessageList', () => {
     expect(assistantMessage.text()).toContain('来源摘要')
   })
 
-  it('只为终态助手用 MDC 渲染 Markdown，用户与流式内容保持纯文本', async () => {
+  it('每次仅显示一条引用来源，并支持左右切换', async () => {
+    const wrapper = await mountMessageList([
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: '回答',
+        status: 'complete',
+        citations: [
+          { id: 'c1', title: '来源一', excerpt: '摘要一' },
+          { id: 'c2', title: '来源二', excerpt: '摘要二' },
+          { id: 'c3', title: '来源三', excerpt: '摘要三' },
+        ],
+      },
+    ])
+
+    const citations = wrapper.get('.chat-message__citations')
+    const previous = citations.get('button[aria-label="上一条引用"]')
+    const next = citations.get('button[aria-label="下一条引用"]')
+
+    expect(citations.findAll('.citation')).toHaveLength(1)
+    expect(citations.text()).toContain('来源一')
+    expect(citations.text()).not.toContain('来源二')
+    expect(citations.get('.citation-carousel__position').text()).toBe('1 / 3')
+    expect(previous.attributes('disabled')).toBeDefined()
+
+    await next.trigger('click')
+
+    expect(citations.findAll('.citation')).toHaveLength(1)
+    expect(citations.text()).toContain('来源二')
+    expect(citations.text()).not.toContain('来源一')
+    expect(citations.get('.citation-carousel__position').text()).toBe('2 / 3')
+    expect(previous.attributes('disabled')).toBeUndefined()
+
+    await next.trigger('click')
+
+    expect(citations.text()).toContain('来源三')
+    expect(next.attributes('disabled')).toBeDefined()
+  })
+
+  it('所有消息以安全的纯文本显示，且保留换行与 Markdown 原文', async () => {
     const wrapper = await mountMessageList([
       { id: 'u1', role: 'user', content: '<strong>用户原文</strong> **不渲染**', status: 'complete' },
       { id: 'a1', role: 'assistant', content: '## 二级标题\n\n**重点**', status: 'complete' },
@@ -162,14 +203,15 @@ describe('ChatMessageList', () => {
 
     expect(userMessage.find('strong').exists()).toBe(false)
     expect(userMessage.text()).toContain('<strong>用户原文</strong> **不渲染**')
-    expect(messages[0]!.get('h2').text()).toBe('二级标题')
-    expect(messages[0]!.get('strong').text()).toBe('重点')
-    expect(messages[1]!.find('strong').exists()).toBe(false)
+    expect(messages[0]!.find('h2').exists()).toBe(false)
+    expect(messages[0]!.find('strong').exists()).toBe(false)
+    expect(messages[0]!.text()).toContain('## 二级标题')
+    expect(messages[0]!.text()).toContain('**重点**')
     expect(messages[1]!.text()).toContain('**增量回答**')
     expect(messages[2]!.text()).toContain('正在思考…')
   })
 
-  it('终态助手 Markdown 禁止原始 HTML、MDC 组件和危险 URL', async () => {
+  it('终态助手将原始 HTML、MDC 组件和链接作为文本显示', async () => {
     const injectedComponentSetup = vi.fn()
     const InjectedChatStatusNotice = defineComponent({
       name: 'ChatStatusNotice',
@@ -215,12 +257,11 @@ describe('ChatMessageList', () => {
     expect(assistantMessage.find('[data-testid="injected-mdc-component"]').exists()).toBe(false)
     expect(injectedComponentSetup).not.toHaveBeenCalled()
 
-    const links = assistantMessage.findAll('a')
-    expect(links).toHaveLength(1)
-    expect(links[0]!.text()).toBe('安全链接')
-    expect(links[0]!.attributes('href')).toBe('https://example.com/docs')
-    expect(assistantMessage.get('strong').text()).toBe('安全加粗')
-    expect(assistantMessage.get('code').text()).toBe('安全代码')
+    expect(assistantMessage.findAll('a')).toHaveLength(0)
+    expect(assistantMessage.find('strong').exists()).toBe(false)
+    expect(assistantMessage.find('code').exists()).toBe(false)
+    expect(assistantMessage.text()).toContain('[安全链接](https://example.com/docs)')
+    expect(assistantMessage.text()).toContain('**安全加粗** 和 `安全代码`')
   })
 
   it('复制助手的原始 Markdown 回答并显示成功状态', async () => {
@@ -237,7 +278,7 @@ describe('ChatMessageList', () => {
 
     expect(writeText).toHaveBeenCalledWith(rawContent)
     expect(copyButton.text()).toBe('已复制')
-    expect(wrapper.get('[role="status"]').text()).toBe('已复制')
+    expect(wrapper.get('.chat-message__copy-status[role="status"]').text()).toBe('已复制')
   })
 
   it('剪贴板拒绝时提供可访问反馈且不显示复制成功', async () => {
@@ -253,7 +294,8 @@ describe('ChatMessageList', () => {
 
     expect(writeText).toHaveBeenCalledWith('回答')
     expect(copyButton.text()).toBe('复制')
-    expect(wrapper.get('[role="status"]').text()).toContain('复制失败，请手动复制')
+    expect(wrapper.get('.chat-message__copy-status[role="status"]').text())
+      .toContain('复制失败，请手动复制')
   })
 
   it('展示已停止和生成失败状态', async () => {
@@ -289,6 +331,37 @@ describe('ChatMessageList', () => {
     expect(wrapper.find('button[aria-label="复制回答"]').exists()).toBe(false)
   })
 
+  it('只播报生成状态，不把每个流式增量放入 live region', async () => {
+    const messages = ref<ChatMessage[]>([
+      { id: 'a1', role: 'assistant', content: '第一段', status: 'streaming' },
+    ])
+    const wrapper = await mountSuspended(defineComponent({
+      setup: () => () => h(ChatMessageList, { messages: messages.value }),
+    }))
+    mountedWrappers.add(wrapper)
+    const list = wrapper.get('section.message-list')
+    const announcement = wrapper.get('.message-list__announcement')
+
+    expect(list.attributes('aria-live')).toBeUndefined()
+    expect(list.attributes('aria-busy')).toBe('true')
+    expect(announcement.attributes('role')).toBe('status')
+    expect(announcement.attributes('aria-live')).toBe('polite')
+    expect(announcement.attributes('aria-atomic')).toBe('true')
+    expect(announcement.text()).toBe('正在生成回答')
+
+    messages.value[0]!.content = '第一段和第二段'
+    await nextTick()
+
+    expect(announcement.text()).toBe('正在生成回答')
+    expect(announcement.text()).not.toContain('第一段和第二段')
+
+    messages.value[0]!.status = 'complete'
+    await nextTick()
+
+    expect(list.attributes('aria-busy')).toBe('false')
+    expect(announcement.text()).toBe('回答生成完成')
+  })
+
   it('内容变化后忽略过期复制结果且反馈互斥', async () => {
     const firstCopy = deferredPromise()
     const secondCopy = deferredPromise()
@@ -315,13 +388,13 @@ describe('ChatMessageList', () => {
     await secondButton.trigger('click')
     secondCopy.resolve()
     await flushPromises()
-    expect(wrapper.get('[role="status"]').text()).toBe('已复制')
+    expect(wrapper.get('.chat-message__copy-status[role="status"]').text()).toBe('已复制')
 
     firstCopy.reject(new Error('late failure'))
     await flushPromises()
 
-    expect(wrapper.findAll('[role="status"]')).toHaveLength(1)
-    expect(wrapper.get('[role="status"]').text()).toBe('已复制')
+    expect(wrapper.findAll('.chat-message__copy-status[role="status"]')).toHaveLength(1)
+    expect(wrapper.get('.chat-message__copy-status[role="status"]').text()).toBe('已复制')
     expect(writeText).toHaveBeenNthCalledWith(1, '旧回答')
     expect(writeText).toHaveBeenNthCalledWith(2, '新回答')
   })
@@ -341,7 +414,7 @@ describe('ChatMessageList', () => {
     })
     await nextTick()
 
-    expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
+    expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'auto' })
   })
 
   it('逐条跟踪消息内容，拼接结果相同时仍触发滚动', async () => {
@@ -363,7 +436,7 @@ describe('ChatMessageList', () => {
     })
     await nextTick()
 
-    expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
+    expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'auto' })
   })
 
   it('观察器均不可用时在终态和引用变化后滚动', async () => {
@@ -388,7 +461,7 @@ describe('ChatMessageList', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
   })
 
-  it('无 ResizeObserver 时等待 MDC DOM 变化后滚动到新高度', async () => {
+  it('无 ResizeObserver 时等待完成态内容变化后滚动到新高度', async () => {
     vi.stubGlobal('ResizeObserver', undefined)
     const observers = stubMutationObserver()
     const wrapper = await mountMessageList([
@@ -421,7 +494,7 @@ describe('ChatMessageList', () => {
     })
     await flushPromises()
 
-    expect(wrapper.get('strong').text()).toBe('完整回答')
+    expect(wrapper.get('.chat-message__content').text()).toBe('**完整回答**')
     expect(wrapper.get('summary').text()).toBe('查看 1 条引用来源')
     expect(scrollTo).not.toHaveBeenCalled()
 
@@ -460,7 +533,45 @@ describe('ChatMessageList', () => {
     observers[0]!.callback([], {} as ResizeObserver)
 
     expect(scrollTo).toHaveBeenCalledOnce()
-    expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'smooth' })
+    expect(scrollTo).toHaveBeenCalledWith({ top: list.scrollHeight, behavior: 'auto' })
+  })
+
+  it('用户上滚阅读时停止跟随，回到底部附近后恢复', async () => {
+    const observers = stubResizeObserver()
+    const wrapper = await mountMessageList([
+      { id: 'a1', role: 'assistant', content: '正在生成的长回答', status: 'streaming' },
+    ])
+    const listWrapper = wrapper.get('section.message-list')
+    const list = listWrapper.element as HTMLElement
+    const scrollTo = vi.fn()
+    let scrollTop = 700
+
+    Object.defineProperties(list, {
+      clientHeight: { configurable: true, get: () => 300 },
+      scrollHeight: { configurable: true, get: () => 1000 },
+      scrollTop: {
+        configurable: true,
+        get: () => scrollTop,
+        set: value => {
+          scrollTop = Number(value)
+        },
+      },
+      scrollTo: { configurable: true, value: scrollTo },
+    })
+
+    await listWrapper.trigger('wheel', { deltaY: -120 })
+    scrollTop = 240
+    await listWrapper.trigger('scroll')
+    observers[0]!.callback([], {} as ResizeObserver)
+
+    expect(scrollTo).not.toHaveBeenCalled()
+
+    scrollTop = 680
+    await listWrapper.trigger('scroll')
+    observers[0]!.callback([], {} as ResizeObserver)
+
+    expect(scrollTo).toHaveBeenCalledOnce()
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'auto' })
   })
 
   it('减少动态效果时使用即时滚动并在卸载时断开观察', async () => {

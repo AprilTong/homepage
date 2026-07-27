@@ -1,6 +1,7 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { nextTick } from 'vue'
-import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import AppHeader from '~/components/AppHeader.vue'
@@ -15,21 +16,9 @@ afterEach(() => {
   mountedWrappers.clear()
 })
 
-async function mountHeader() {
-  const routeComponent = { render: () => null }
-  const router = createRouter({
-    history: createMemoryHistory(),
-    routes: [
-      { path: '/', component: routeComponent },
-      { path: '/articles', component: routeComponent },
-      { path: '/timeline', component: routeComponent },
-      { path: '/about', component: routeComponent },
-    ],
-  })
-
+async function mountHeader(path = '/') {
   const wrapper = await mountSuspended(AppHeader, {
-    route: false,
-    global: { plugins: [router] },
+    route: path,
   })
 
   mountedWrappers.add(wrapper)
@@ -37,11 +26,18 @@ async function mountHeader() {
 }
 
 describe('AppHeader', () => {
+  it('滚动时固定在页面顶部', async () => {
+    const stylesheet = await readFile(resolve(process.cwd(), 'app/assets/css/main.css'), 'utf8')
+
+    expect(stylesheet).toMatch(/\.app-header\s*\{[^}]*position:\s*sticky/s)
+    expect(stylesheet).toMatch(/\.app-header\s*\{[^}]*top:\s*12px/s)
+  })
+
   it('展示品牌与全部导航入口', async () => {
     const wrapper = await mountHeader()
 
     const brand = wrapper.get('[data-testid="brand"]')
-    expect(brand.text()).toContain('april.dev')
+    expect(brand.text()).toContain('april的记录小屋')
     expect(brand.classes()).toContain('brand')
     expect(brand.attributes('href')).toBe('/')
     expect(brand.attributes('aria-label')).toBe('April 博客首页')
@@ -49,17 +45,35 @@ describe('AppHeader', () => {
     expect(brand.get('.brand__mark').attributes('aria-hidden')).toBe('true')
 
     for (const [href, label] of [
-      ['/articles', '文章'],
-      ['/timeline', '时间轴'],
+      ['/', 'Chat'],
+      ['/timeline', '文章'],
       ['/about', '关于'],
     ]) {
-      expect(wrapper.get(`a[href="${href}"]`).text()).toBe(label)
+      expect(wrapper.get(`#primary-navigation a[href="${href}"]`).text()).toBe(label)
     }
 
     const githubLink = wrapper.get('a[href="https://github.com/AprilTong"]')
     expect(githubLink.text()).toBe('GitHub ↗')
     expect(githubLink.attributes('target')).toBe('_blank')
     expect(githubLink.attributes('rel')).toBe('noreferrer')
+  })
+
+  it('Chat 入口使用站内 Nuxt 路由', async () => {
+    const wrapper = await mountHeader()
+    const chatLink = wrapper.findAllComponents({ name: 'NuxtLink' })
+      .find(link => link.props('to') === '/')
+
+    expect(chatLink).toBeDefined()
+    expect(chatLink?.props('external')).toBeFalsy()
+  })
+
+  it('关于入口使用站内 Nuxt 路由', async () => {
+    const wrapper = await mountHeader()
+    const aboutLink = wrapper.findAllComponents({ name: 'NuxtLink' })
+      .find(link => link.props('to') === '/about')
+
+    expect(aboutLink).toBeDefined()
+    expect(aboutLink?.props('external')).toBeFalsy()
   })
 
   it('点击菜单按钮切换导航展开状态', async () => {
@@ -82,6 +96,7 @@ describe('AppHeader', () => {
   it('按下 Escape 时关闭导航', async () => {
     const wrapper = await mountHeader()
     const toggle = wrapper.get('.menu-toggle')
+    const focus = vi.spyOn(toggle.element as HTMLButtonElement, 'focus')
 
     await toggle.trigger('click')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
@@ -89,6 +104,7 @@ describe('AppHeader', () => {
 
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.get('#primary-navigation').classes()).not.toContain('is-open')
+    expect(focus).toHaveBeenCalledOnce()
   })
 
   it('点击导航链接后关闭菜单', async () => {
@@ -96,8 +112,8 @@ describe('AppHeader', () => {
     const toggle = wrapper.get('.menu-toggle')
 
     await toggle.trigger('click')
-    const articleLink = wrapper.get('a[href="/articles"]')
-    await articleLink.trigger('click')
+    const chatLink = wrapper.get('#primary-navigation a[href="/"]')
+    await chatLink.trigger('click')
 
     expect(toggle.attributes('aria-expanded')).toBe('false')
     expect(wrapper.get('#primary-navigation').classes()).not.toContain('is-open')
@@ -126,3 +142,22 @@ describe('AppHeader', () => {
     }
   })
 })
+
+  it('在 Chat 路由标记 Chat 为选中状态', async () => {
+    const wrapper = await mountHeader('/')
+    const chatLink = wrapper.get('#primary-navigation a[href="/"]')
+
+    expect(chatLink.classes()).toContain('is-active')
+    expect(chatLink.attributes('aria-current')).toBe('page')
+  })
+
+  it('在关于与文章路由标记对应入口为选中状态', async () => {
+    const aboutWrapper = await mountHeader('/about')
+    expect(aboutWrapper.get('#primary-navigation a[href="/about"]').classes()).toContain('is-active')
+
+    aboutWrapper.unmount()
+    mountedWrappers.delete(aboutWrapper)
+
+    const articleWrapper = await mountHeader('/articles')
+    expect(articleWrapper.get('#primary-navigation a[href="/timeline"]').classes()).toContain('is-active')
+  })

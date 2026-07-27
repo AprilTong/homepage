@@ -1,13 +1,20 @@
 <script setup lang="ts">
 const isMenuOpen = ref(false)
+const menuToggle = useTemplateRef<HTMLButtonElement>('menuToggle')
+const route = useRoute()
+
+const isChatRoute = computed(() => route.path === '/')
+const isArticleRoute = computed(() => route.path === '/timeline' || route.path.startsWith('/articles'))
+const isAboutRoute = computed(() => route.path === '/about')
 
 function closeMenu() {
   isMenuOpen.value = false
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') {
+  if (event.key === 'Escape' && isMenuOpen.value) {
     closeMenu()
+    nextTick(() => menuToggle.value?.focus())
   }
 }
 
@@ -29,10 +36,11 @@ onBeforeUnmount(() => {
       aria-label="April 博客首页"
     >
       <span class="brand__mark" aria-hidden="true">A</span>
-      <span>april.dev</span>
+      <span>april的记录小屋</span>
     </NuxtLink>
 
     <button
+      ref="menuToggle"
       type="button"
       class="menu-toggle"
       aria-controls="primary-navigation"
@@ -49,9 +57,25 @@ onBeforeUnmount(() => {
       :class="{ 'is-open': isMenuOpen }"
       aria-label="主导航"
     >
-      <NuxtLink to="/articles" @click="closeMenu">文章</NuxtLink>
-      <NuxtLink to="/timeline" @click="closeMenu">时间轴</NuxtLink>
-      <NuxtLink to="/about" @click="closeMenu">关于</NuxtLink>
+      <NuxtLink
+        to="/"
+        :class="{ 'is-active': isChatRoute }"
+        :aria-current="isChatRoute ? 'page' : undefined"
+        @click="closeMenu"
+      >Chat</NuxtLink>
+      <NuxtLink
+        to="/timeline"
+        external
+        :class="{ 'is-active': isArticleRoute }"
+        :aria-current="isArticleRoute ? 'page' : undefined"
+        @click="closeMenu"
+      >文章</NuxtLink>
+      <NuxtLink
+        to="/about"
+        :class="{ 'is-active': isAboutRoute }"
+        :aria-current="isAboutRoute ? 'page' : undefined"
+        @click="closeMenu"
+      >关于</NuxtLink>
       <a
         href="https://github.com/AprilTong"
         target="_blank"

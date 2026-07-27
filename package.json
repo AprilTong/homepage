@@ -12,7 +12,9 @@
     "preview": "nuxt preview",
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "migrate:content": "node scripts/migrate-legacy-content.mjs --output content/articles",
+    "verify:content": "node scripts/verify-migrated-content.mjs"
   },
   "dependencies": {
     "@nuxt/content": "^3.15.0",
@@ -24,6 +26,9 @@
     "@nuxt/test-utils": "^4.0.3",
     "@vue/test-utils": "^2.4.11",
     "happy-dom": "^20.11.0",
+    "mdast-util-from-markdown": "2.0.3",
+    "mdast-util-to-string": "4.0.0",
+    "parse5": "8.0.1",
     "typescript": "~5.9.3",
     "vitest": "^4.1.10",
     "vue-tsc": "^3.3.7"

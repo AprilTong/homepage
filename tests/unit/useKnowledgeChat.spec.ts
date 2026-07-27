@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { useKnowledgeChat } from '../../app/composables/useKnowledgeChat'
 import { createDemoChatClient } from '../../app/services/demo-chat-client'
-import type { ChatClient, ChatStreamEvent } from '../../app/types/chat'
+import { PublicChatError, type ChatClient, type ChatStreamEvent } from '../../app/types/chat'
 
 function createDeferred() {
   let resolve!: () => void
@@ -45,6 +45,44 @@ describe('useKnowledgeChat', () => {
       citations: [citation],
     })
     expect(chat.status.value).toBe('idle')
+  })
+
+  it('treats EOF without an explicit done event as a retryable error', async () => {
+    const questions: string[] = []
+    const client: ChatClient = {
+      async *streamAnswer(question): AsyncIterable<ChatStreamEvent> {
+        questions.push(question)
+        if (questions.length === 1) {
+          yield { type: 'delta', delta: '只生成了一部分' }
+          return
+        }
+
+        yield { type: 'delta', delta: '重新生成的完整回答' }
+        yield { type: 'done' }
+      },
+    }
+    const chat = useKnowledgeChat(client)
+
+    await chat.sendMessage('请回答完整')
+
+    expect(chat.messages.value.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: '只生成了一部分',
+      status: 'error',
+    })
+    expect(chat.status.value).toBe('error')
+    expect(chat.errorMessage.value).toBe('生成回答时发生错误')
+
+    await chat.retryLastMessage()
+
+    expect(questions).toEqual(['请回答完整', '请回答完整'])
+    expect(chat.messages.value).toHaveLength(2)
+    expect(chat.messages.value.filter(message => message.role === 'user')).toHaveLength(1)
+    expect(chat.messages.value.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: '重新生成的完整回答',
+      status: 'complete',
+    })
   })
 
   it('ignores blank questions and rejects a second send while streaming', async () => {
@@ -139,13 +177,40 @@ describe('useKnowledgeChat', () => {
     }
   })
 
+  it('does not expose an unknown Error message in public chat state', async () => {
+    const client: ChatClient = {
+      async *streamAnswer(): AsyncIterable<ChatStreamEvent> {
+        throw new Error('postgres://secret/internal')
+      },
+    }
+    const chat = useKnowledgeChat(client)
+
+    await chat.sendMessage('触发内部错误')
+
+    expect(chat.errorMessage.value).toBe('生成回答时发生错误')
+    expect(chat.errorMessage.value).not.toContain('postgres://secret/internal')
+  })
+
+  it('exposes only an explicitly reviewed public chat error message', async () => {
+    const client: ChatClient = {
+      async *streamAnswer(): AsyncIterable<ChatStreamEvent> {
+        throw new PublicChatError('请求过于频繁，请稍后再试')
+      },
+    }
+    const chat = useKnowledgeChat(client)
+
+    await chat.sendMessage('触发公开错误')
+
+    expect(chat.errorMessage.value).toBe('请求过于频繁，请稍后再试')
+  })
+
   it('records errors and retries the last question without duplicating it', async () => {
     let attempt = 0
     const client: ChatClient = {
       async *streamAnswer(): AsyncIterable<ChatStreamEvent> {
         attempt += 1
         if (attempt === 1) {
-          throw new Error('网络中断')
+          throw new PublicChatError('网络中断')
         }
 
         yield { type: 'delta', delta: '重试成功' }
