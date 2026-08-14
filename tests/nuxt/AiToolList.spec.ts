@@ -74,6 +74,9 @@ describe('AI 工具展示组件', () => {
     expect(stylesheet).toMatch(
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ai-tool-card\s*\{[^}]*transform:\s*none !important/,
     )
+    expect(stylesheet).toMatch(
+      /@media \(hover: hover\)[\s\S]*?\.ai-tool-card h2 a:hover\s*\{[^}]*color:\s*var\(--color-cyan-bright\)/,
+    )
   })
 
   it('Hero 展示动态总数和类型数量', async () => {
@@ -99,10 +102,12 @@ describe('AI 工具展示组件', () => {
     expect(cards[0]!.findAll('[data-testid="tool-tag"]')).toHaveLength(3)
     expect(cards[0]!.get('[data-testid="tool-platforms"]').text()).toBe('Codex · Claude Code · Cursor')
 
-    const links = cards[0]!.findAll('a')
-    expect(links).toHaveLength(1)
-    expect(links[0]!.attributes('href')).toBe('/ai-tools/superpowers')
-    expect(links[0]!.text()).toBe('查看详情')
+    const titleLink = cards[0]!.get('h2 a')
+    expect(cards[0]!.findAll('a')).toHaveLength(1)
+    expect(titleLink.attributes('href')).toBe('/ai-tools/superpowers')
+    expect(titleLink.text()).toBe('Superpowers')
+    expect(cards[0]!.text()).not.toContain('查看详情')
+    expect(cards[0]!.find('.ai-tool-card__link').exists()).toBe(false)
   })
 
   it('空列表展示状态和重置入口', async () => {

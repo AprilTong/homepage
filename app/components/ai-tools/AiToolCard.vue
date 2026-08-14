@@ -19,7 +19,9 @@ const visiblePlatforms = computed(() => props.tool.platforms.slice(0, 3).join(' 
       </span>
     </div>
 
-    <h2>{{ tool.title }}</h2>
+    <h2>
+      <NuxtLink :to="tool.path">{{ tool.title }}</NuxtLink>
+    </h2>
     <p class="ai-tool-card__description">{{ tool.description }}</p>
 
     <ul v-if="visibleTags.length" class="ai-tool-card__tags" aria-label="用途标签">
@@ -30,8 +32,5 @@ const visiblePlatforms = computed(() => props.tool.platforms.slice(0, 3).join(' 
       {{ visiblePlatforms }}
     </p>
 
-    <NuxtLink :to="tool.path" class="ai-tool-card__link">
-      查看详情
-    </NuxtLink>
   </article>
 </template>
