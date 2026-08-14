@@ -41,7 +41,7 @@ const toolItems = computed<AiToolSummary[]>(() =>
     tags: tool.tags ?? [],
     officialUrl: tool.officialUrl,
     repositoryUrl: tool.repositoryUrl,
-    featured: tool.featured,
+    featured: tool.featured ?? false,
   })),
 )
 const skillCount = computed(() => toolItems.value.filter(tool => tool.type === 'skill').length)
