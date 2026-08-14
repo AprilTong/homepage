@@ -1,4 +1,6 @@
 import { mountSuspended } from '@nuxt/test-utils/runtime'
+import { readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it } from 'vitest'
 
@@ -53,6 +55,27 @@ async function mountList(items: AiToolSummary[] = tools) {
 }
 
 describe('AI 工具展示组件', () => {
+  it('定义列表、详情和代码块的响应式布局', async () => {
+    const stylesheet = await readFile(resolve(process.cwd(), 'app/assets/css/main.css'), 'utf8')
+
+    expect(stylesheet).toMatch(
+      /\.ai-tool-list\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/s,
+    )
+    expect(stylesheet).toMatch(
+      /@media \(max-width: 960px\)[\s\S]*?\.ai-tool-list\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/,
+    )
+    expect(stylesheet).toMatch(
+      /@media \(max-width: 720px\)[\s\S]*?\.ai-tool-list\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
+    )
+    expect(stylesheet).toMatch(
+      /\.ai-tool-detail__layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) minmax\(210px, 260px\)/s,
+    )
+    expect(stylesheet).toMatch(/\.prose-pre pre\s*\{[^}]*overflow-x:\s*auto/s)
+    expect(stylesheet).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.ai-tool-card\s*\{[^}]*transform:\s*none !important/,
+    )
+  })
+
   it('Hero 展示动态总数和类型数量', async () => {
     const wrapper = await mountSuspended(AiToolHero, {
       props: { total: 8, skillCount: 4, mcpCount: 4 },

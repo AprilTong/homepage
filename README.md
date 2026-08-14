@@ -67,6 +67,8 @@ pnpm verify:content
 - `/`：知识库 Chat 演示首页。
 - `/articles`：文章列表、分类与标签筛选。
 - `/articles/:category/:id`：文章详情。
+- `/ai-tools`：常用 Skills 与 MCP 工具目录，可按类型筛选。
+- `/ai-tools/:slug`：工具说明、安装配置和使用示例。
 - `/chat`：永久重定向到首页。
 
 ## 凭据安全
