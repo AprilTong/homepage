@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AiToolSidebar from '~/components/ai-tools/AiToolSidebar.vue'
 import type { AiToolSummary } from '~/types/ai-tool'
+import { sortAiToolsByOrder } from '~/utils/sort-ai-tools'
 
 const route = useRoute()
 const { data: detailData, error: detailError } = await useAsyncData(
@@ -49,7 +50,7 @@ if (!tool) {
   })
 }
 
-const relatedTools = (detailData.value?.relatedTools ?? [])
+const relatedTools = sortAiToolsByOrder(detailData.value?.relatedTools ?? [])
   .filter(item => item.path !== tool.path)
   .slice(0, 3) as AiToolSummary[]
 const typeLabel = tool.type === 'skill' ? 'Skill' : 'MCP'

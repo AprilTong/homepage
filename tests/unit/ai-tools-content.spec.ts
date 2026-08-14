@@ -11,10 +11,14 @@ const expectedSlugs = [
   'context7',
   'figma-mcp',
   'find-skills',
+  'frontend-design',
   'github-mcp',
+  'playwright-mcp',
+  'sentry-mcp',
   'skill-creator',
   'superpowers',
   'taste-skill',
+  'web-design-guidelines',
 ]
 const requiredHeadings = [
   '工具是什么',
@@ -53,15 +57,15 @@ function readTools() {
 }
 
 describe('AI 工具内容', () => {
-  it('包含 4 个 Skill 和 4 个 MCP，且排序值唯一', () => {
+  it('包含 6 个 Skill 和 6 个 MCP，且排序值唯一', () => {
     const tools = readTools()
 
     expect(tools.map(tool => tool.slug).sort()).toEqual(expectedSlugs)
-    expect(tools.filter(tool => readField(tool.frontMatter, 'type') === 'skill')).toHaveLength(4)
-    expect(tools.filter(tool => readField(tool.frontMatter, 'type') === 'mcp')).toHaveLength(4)
+    expect(tools.filter(tool => readField(tool.frontMatter, 'type') === 'skill')).toHaveLength(6)
+    expect(tools.filter(tool => readField(tool.frontMatter, 'type') === 'mcp')).toHaveLength(6)
 
     const orders = tools.map(tool => readField(tool.frontMatter, 'order'))
-    expect(new Set(orders).size).toBe(8)
+    expect(new Set(orders).size).toBe(12)
     expect(orders.every(order => Number.isInteger(order) && Number(order) > 0)).toBe(true)
   })
 

@@ -52,26 +52,26 @@ const tool = {
 const relatedTools = [
   tool,
   {
+    path: '/ai-tools/frontend-design',
+    title: 'Frontend Design',
+    description: '前端设计。',
+    type: 'skill',
+    order: '10',
+    platforms: ['Codex'],
+    tags: ['UI'],
+    officialUrl: 'https://example.com/frontend-design',
+    featured: false,
+  },
+  {
     path: '/ai-tools/taste-skill',
     title: 'Taste Skill',
     description: '设计规则。',
     type: 'skill',
-    order: 2,
+    order: '2',
     platforms: ['Codex'],
     tags: ['UI'],
     officialUrl: 'https://example.com/taste',
     featured: true,
-  },
-  {
-    path: '/ai-tools/find-skills',
-    title: 'Find Skills',
-    description: '发现 Skills。',
-    type: 'skill',
-    order: 3,
-    platforms: ['Codex'],
-    tags: ['发现'],
-    officialUrl: 'https://example.com/find',
-    featured: false,
   },
 ]
 const wrappers = new Set<{ unmount: () => void }>()
@@ -148,7 +148,7 @@ describe('AI 工具详情页', () => {
     ])
     expect(wrapper.findAll('.ai-tool-recommendations article.ai-tool-card')).toHaveLength(2)
     expect(wrapper.findAll('.ai-tool-recommendations h3').map(node => node.text()))
-      .toEqual(['Taste Skill', 'Find Skills'])
+      .toEqual(['Taste Skill', 'Frontend Design'])
   })
 
   it('渲染工具元数据、正文、侧栏和返回入口', async () => {

@@ -115,6 +115,19 @@ describe('AI 工具列表页', () => {
     expect(wrapper.get('[data-testid="tool-counts"]').text()).toContain('2 MCP')
   })
 
+  it('将 Content 返回的文本 order 按数值排序', async () => {
+    contentQuery.builder.all.mockResolvedValue([
+      { ...tools[0], order: '1' },
+      { ...tools[3], title: 'Order 10', order: '10' },
+      { ...tools[1], order: '2' },
+    ])
+
+    const { wrapper } = await mountPage()
+
+    expect(wrapper.findAll('article.ai-tool-card h2').map(node => node.text()))
+      .toEqual(['Superpowers', 'Taste Skill', 'Order 10'])
+  })
+
   it('从查询参数初始化筛选并保留无关参数', async () => {
     const { replace, router, wrapper } = await mountPage('/ai-tools?type=skill&from=share')
 

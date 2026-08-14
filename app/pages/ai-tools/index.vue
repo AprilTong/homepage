@@ -3,6 +3,7 @@ import AiToolFilters from '~/components/ai-tools/AiToolFilters.vue'
 import AiToolHero from '~/components/ai-tools/AiToolHero.vue'
 import AiToolList from '~/components/ai-tools/AiToolList.vue'
 import type { AiToolFilter, AiToolSummary } from '~/types/ai-tool'
+import { sortAiToolsByOrder } from '~/utils/sort-ai-tools'
 
 const canonicalUrl = 'https://blog.april-tong.cn/ai-tools'
 const seoTitle = 'AI 工具箱｜April 的技术笔记'
@@ -31,18 +32,20 @@ const { data: tools } = await useAsyncData('ai-tools-index', () =>
 )
 
 const toolItems = computed<AiToolSummary[]>(() =>
-  (tools.value ?? []).map(tool => ({
-    path: tool.path,
-    title: tool.title,
-    description: tool.description,
-    type: tool.type,
-    order: tool.order,
-    platforms: tool.platforms ?? [],
-    tags: tool.tags ?? [],
-    officialUrl: tool.officialUrl,
-    repositoryUrl: tool.repositoryUrl,
-    featured: tool.featured ?? false,
-  })),
+  sortAiToolsByOrder(
+    (tools.value ?? []).map(tool => ({
+      path: tool.path,
+      title: tool.title,
+      description: tool.description,
+      type: tool.type,
+      order: Number(tool.order),
+      platforms: tool.platforms ?? [],
+      tags: tool.tags ?? [],
+      officialUrl: tool.officialUrl,
+      repositoryUrl: tool.repositoryUrl,
+      featured: tool.featured ?? false,
+    })),
+  ),
 )
 const skillCount = computed(() => toolItems.value.filter(tool => tool.type === 'skill').length)
 const mcpCount = computed(() => toolItems.value.filter(tool => tool.type === 'mcp').length)
