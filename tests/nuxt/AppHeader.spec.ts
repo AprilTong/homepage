@@ -47,6 +47,7 @@ describe('AppHeader', () => {
     for (const [href, label] of [
       ['/', 'Chat'],
       ['/timeline', '文章'],
+      ['/ai-tools', 'AI 工具'],
       ['/about', '关于'],
     ]) {
       expect(wrapper.get(`#primary-navigation a[href="${href}"]`).text()).toBe(label)
@@ -160,4 +161,22 @@ describe('AppHeader', () => {
 
     const articleWrapper = await mountHeader('/articles')
     expect(articleWrapper.get('#primary-navigation a[href="/timeline"]').classes()).toContain('is-active')
+  })
+
+  it('在 AI 工具列表和详情路由标记 AI 工具入口为选中状态', async () => {
+    const listWrapper = await mountHeader('/ai-tools')
+    const listLink = listWrapper.get('#primary-navigation a[href="/ai-tools"]')
+
+    expect(listLink.classes()).toContain('is-active')
+    expect(listLink.attributes('aria-current')).toBe('page')
+    expect(listWrapper.get('#primary-navigation a[href="/"]').attributes('aria-current')).toBeUndefined()
+
+    listWrapper.unmount()
+    mountedWrappers.delete(listWrapper)
+
+    const detailWrapper = await mountHeader('/ai-tools/context7')
+    const detailLink = detailWrapper.get('#primary-navigation a[href="/ai-tools"]')
+
+    expect(detailLink.classes()).toContain('is-active')
+    expect(detailLink.attributes('aria-current')).toBe('page')
   })
