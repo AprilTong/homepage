@@ -5,6 +5,7 @@ const route = useRoute()
 
 const isChatRoute = computed(() => route.path === '/')
 const isArticleRoute = computed(() => route.path === '/timeline' || route.path.startsWith('/articles'))
+const isAiToolsRoute = computed(() => route.path === '/ai-tools' || route.path.startsWith('/ai-tools/'))
 const isAboutRoute = computed(() => route.path === '/about')
 
 function closeMenu() {
@@ -70,6 +71,12 @@ onBeforeUnmount(() => {
         :aria-current="isArticleRoute ? 'page' : undefined"
         @click="closeMenu"
       >文章</NuxtLink>
+      <NuxtLink
+        to="/ai-tools"
+        :class="{ 'is-active': isAiToolsRoute }"
+        :aria-current="isAiToolsRoute ? 'page' : undefined"
+        @click="closeMenu"
+      >AI 工具</NuxtLink>
       <NuxtLink
         to="/about"
         :class="{ 'is-active': isAboutRoute }"
